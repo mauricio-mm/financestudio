@@ -1,12 +1,10 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
-
-const currency = new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-});
-
-const money = (value) => currency.format(value);
+import CashFlowChart from '@/Components/Dashboard/CashFlowChart.vue';
+import ManagementTotalsCard from '@/Components/Dashboard/ManagementTotalsCard.vue';
+import StatusBreakdownCard from '@/Components/Dashboard/StatusBreakdownCard.vue';
+import SummaryMetricCard from '@/Components/Dashboard/SummaryMetricCard.vue';
+import UpcomingBillsCard from '@/Components/Dashboard/UpcomingBillsCard.vue';
 
 const summaryCards = [
     {
@@ -75,9 +73,6 @@ const cashFlow = [
     { month: 'Ago', incoming: 25.2, outgoing: 15.8 },
 ];
 
-const maxCashFlow = Math.max(...cashFlow.flatMap((item) => [item.incoming, item.outgoing]));
-const barHeight = (value) => Math.max(14, Math.round((value / maxCashFlow) * 100)) + '%';
-
 const receivableStatus = [
     { label: 'Pendente', amount: 42880, color: 'bg-amber-400' },
     { label: 'Recebido', amount: 28740, color: 'bg-emerald-500' },
@@ -115,225 +110,26 @@ const upcomingBills = [
 
         <div class="space-y-6">
             <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <article
+                <SummaryMetricCard
                     v-for="card in summaryCards"
                     :key="card.label"
-                    class="rounded-lg bg-white p-5 shadow-sm ring-1 ring-black/5"
-                >
-                    <div class="flex items-start justify-between gap-4">
-                        <div>
-                            <p class="text-sm font-medium text-slate-500">
-                                {{ card.label }}
-                            </p>
-                            <p class="mt-2 text-2xl font-semibold text-slate-900">
-                                {{ money(card.value) }}
-                            </p>
-                        </div>
-
-                        <div
-                            class="flex size-12 items-center justify-center rounded-lg"
-                            :class="[card.iconBg, card.color]"
-                        >
-                            <svg
-                                class="size-6"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="1.8"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                aria-hidden="true"
-                            >
-                                <path v-for="path in card.icon" :key="path" :d="path" />
-                            </svg>
-                        </div>
-                    </div>
-
-                    <div class="mt-5 flex items-center justify-between border-t border-slate-100 pt-3 text-xs">
-                        <span class="text-slate-400">{{ card.detail }}</span>
-                        <span class="font-semibold" :class="card.color">{{ card.trend }}</span>
-                    </div>
-                </article>
+                    :card="card"
+                />
             </section>
 
             <section class="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(360px,0.95fr)]">
-                <article class="rounded-lg bg-white p-6 shadow-sm ring-1 ring-black/5">
-                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                            <p class="text-sm font-medium text-slate-500">
-                                Fluxo de caixa
-                            </p>
-                            <h2 class="mt-1 text-lg font-semibold text-slate-900">
-                                Entradas e saidas mensais
-                            </h2>
-                        </div>
-                        <div class="flex gap-4 text-xs text-slate-500">
-                            <span class="flex items-center gap-2">
-                                <span class="size-2 rounded-full bg-emerald-500" />
-                                Receber
-                            </span>
-                            <span class="flex items-center gap-2">
-                                <span class="size-2 rounded-full bg-rose-500" />
-                                Pagar
-                            </span>
-                        </div>
-                    </div>
-
-                    <div class="mt-8 h-72">
-                        <div class="grid h-full grid-cols-6 items-end gap-3 border-b border-slate-100 pb-8">
-                            <div
-                                v-for="item in cashFlow"
-                                :key="item.month"
-                                class="relative flex h-full items-end justify-center gap-2"
-                            >
-                                <div class="flex h-full w-full max-w-[58px] items-end justify-center gap-1.5">
-                                    <div
-                                        class="w-1/2 rounded-t bg-emerald-400 shadow-sm"
-                                        :style="{ height: barHeight(item.incoming) }"
-                                    />
-                                    <div
-                                        class="w-1/2 rounded-t bg-rose-400 shadow-sm"
-                                        :style="{ height: barHeight(item.outgoing) }"
-                                    />
-                                </div>
-                                <span class="absolute -bottom-7 text-xs font-medium text-slate-400">
-                                    {{ item.month }}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </article>
-
-                <article class="rounded-lg bg-white p-6 shadow-sm ring-1 ring-black/5">
-                    <div class="flex items-start justify-between gap-4">
-                        <div>
-                            <p class="text-sm font-medium text-slate-500">
-                                Saldos
-                            </p>
-                            <h2 class="mt-1 text-lg font-semibold text-slate-900">
-                                Posicao gerencial
-                            </h2>
-                        </div>
-                        <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                            Agosto
-                        </span>
-                    </div>
-
-                    <div class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
-                        <div
-                            v-for="item in managementTotals"
-                            :key="item.label"
-                            class="space-y-2"
-                        >
-                            <div class="flex items-center justify-between gap-4 text-sm">
-                                <span class="font-medium text-slate-600">{{ item.label }}</span>
-                                <span class="font-semibold text-slate-900">{{ money(item.value) }}</span>
-                            </div>
-                            <div class="h-2 rounded-full bg-slate-100">
-                                <div
-                                    class="h-2 rounded-full"
-                                    :class="item.color"
-                                    :style="{ width: item.percentage + '%' }"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="mt-8 rounded-lg bg-slate-900 p-5 text-white">
-                        <p class="text-xs uppercase tracking-[0.18em] text-white/40">
-                            Saldo realizado
-                        </p>
-                        <p class="mt-2 text-3xl font-semibold">
-                            {{ money(9260) }}
-                        </p>
-                        <p class="mt-2 text-sm text-white/50">
-                            Resultado entre valores recebidos e pagos.
-                        </p>
-                    </div>
-                </article>
+                <CashFlowChart :items="cashFlow" />
+                <ManagementTotalsCard
+                    :items="managementTotals"
+                    :realized-balance="9260"
+                    period-label="Agosto"
+                />
             </section>
 
             <section class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(340px,0.9fr)]">
-                <article class="rounded-lg bg-white p-6 shadow-sm ring-1 ring-black/5">
-                    <h2 class="text-lg font-semibold text-slate-900">
-                        Contas a receber
-                    </h2>
-                    <div class="mt-5 space-y-4">
-                        <div
-                            v-for="item in receivableStatus"
-                            :key="item.label"
-                            class="flex items-center gap-4"
-                        >
-                            <span class="size-3 rounded-full" :class="item.color" />
-                            <div class="min-w-0 flex-1">
-                                <div class="flex items-center justify-between gap-3 text-sm">
-                                    <span class="font-medium text-slate-600">{{ item.label }}</span>
-                                    <span class="font-semibold text-slate-900">{{ money(item.amount) }}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </article>
-
-                <article class="rounded-lg bg-white p-6 shadow-sm ring-1 ring-black/5">
-                    <h2 class="text-lg font-semibold text-slate-900">
-                        Contas a pagar
-                    </h2>
-                    <div class="mt-5 space-y-4">
-                        <div
-                            v-for="item in payableStatus"
-                            :key="item.label"
-                            class="flex items-center gap-4"
-                        >
-                            <span class="size-3 rounded-full" :class="item.color" />
-                            <div class="min-w-0 flex-1">
-                                <div class="flex items-center justify-between gap-3 text-sm">
-                                    <span class="font-medium text-slate-600">{{ item.label }}</span>
-                                    <span class="font-semibold text-slate-900">{{ money(item.amount) }}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </article>
-
-                <article class="rounded-lg bg-white p-6 shadow-sm ring-1 ring-black/5">
-                    <div class="flex items-center justify-between gap-3">
-                        <h2 class="text-lg font-semibold text-slate-900">
-                            Proximos vencimentos
-                        </h2>
-                        <span class="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            7 dias
-                        </span>
-                    </div>
-
-                    <div class="mt-5 divide-y divide-slate-100">
-                        <div
-                            v-for="bill in upcomingBills"
-                            :key="bill.title"
-                            class="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0"
-                        >
-                            <div class="min-w-0">
-                                <p class="truncate text-sm font-semibold text-slate-800">
-                                    {{ bill.title }}
-                                </p>
-                                <p class="mt-1 text-xs text-slate-400">
-                                    {{ bill.type }} - vence {{ bill.due }}
-                                </p>
-                            </div>
-                            <div class="text-right">
-                                <p class="text-sm font-semibold text-slate-900">
-                                    {{ money(bill.value) }}
-                                </p>
-                                <p
-                                    class="mt-1 text-xs font-semibold"
-                                    :class="bill.status === 'Vencido' ? 'text-rose-600' : 'text-amber-600'"
-                                >
-                                    {{ bill.status }}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </article>
+                <StatusBreakdownCard title="Contas a receber" :items="receivableStatus" />
+                <StatusBreakdownCard title="Contas a pagar" :items="payableStatus" />
+                <UpcomingBillsCard :bills="upcomingBills" period-label="7 dias" />
             </section>
         </div>
     </AppLayout>
