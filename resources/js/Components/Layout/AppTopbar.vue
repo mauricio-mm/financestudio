@@ -1,5 +1,6 @@
 <script setup>
 import { router } from '@inertiajs/vue3';
+import { ChevronDown, Menu, Search } from '@lucide/vue';
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 
@@ -24,20 +25,7 @@ const logout = () => {
                 @click="emit('open-sidebar')"
             >
                 <span class="sr-only">Abrir menu</span>
-                <svg
-                    class="size-5"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                >
-                    <path d="M4 6h16" />
-                    <path d="M4 12h16" />
-                    <path d="M4 18h16" />
-                </svg>
+                <Menu class="size-5" stroke-width="2" aria-hidden="true" />
             </button>
 
             <div class="min-w-0 flex-1">
@@ -54,19 +42,7 @@ const logout = () => {
             </div>
 
             <div class="hidden w-full max-w-xs items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-400 shadow-sm lg:flex">
-                <svg
-                    class="me-2 size-4 shrink-0"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                >
-                    <circle cx="11" cy="11" r="8" />
-                    <path d="m21 21-4.3-4.3" />
-                </svg>
+                <Search class="me-2 size-4 shrink-0" stroke-width="2" aria-hidden="true" />
                 <span>Buscar...</span>
             </div>
 
@@ -91,18 +67,7 @@ const logout = () => {
                         <span class="hidden max-w-32 truncate font-medium sm:block">
                             {{ $page.props.auth.user.name }}
                         </span>
-                        <svg
-                            class="size-4 text-slate-400"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            aria-hidden="true"
-                        >
-                            <path d="m6 9 6 6 6-6" />
-                        </svg>
+                        <ChevronDown class="size-4 text-slate-400" stroke-width="2" aria-hidden="true" />
                     </button>
                 </template>
 

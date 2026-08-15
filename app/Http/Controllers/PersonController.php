@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Person;
 use App\Models\PersonType;
+use App\Support\Format;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -97,10 +98,10 @@ class PersonController extends Controller
 
     private function validatedData(Request $request, ?Person $person = null): array
     {
-        $phone = $this->onlyDigits((string) $request->input('phone'));
+        $phone = Format::onlyDigits((string) $request->input('phone'));
 
         $request->merge([
-            'document' => $this->onlyDigits((string) $request->input('document')),
+            'document' => Format::onlyDigits((string) $request->input('document')),
             'phone' => $phone !== '' ? $phone : null,
         ]);
 
@@ -139,42 +140,15 @@ class PersonController extends Controller
         return [
             'id' => $person->id,
             'name' => $person->name,
-            'document' => $this->formatDocument($person->document),
+            'document' => Format::document($person->document),
             'document_digits' => $person->document,
             'email' => $person->email,
-            'phone' => $this->formatPhone($person->phone),
+            'phone' => Format::phone($person->phone),
             'phone_digits' => $person->phone,
             'person_type_id' => $person->person_type_id,
             'type_label' => $person->personType?->name,
             'type_slug' => $person->personType?->slug,
             'created_at' => $person->created_at?->format('d/m/Y'),
         ];
-    }
-
-    private function onlyDigits(string $value): string
-    {
-        return preg_replace('/\D+/', '', $value) ?? '';
-    }
-
-    private function formatDocument(string $document): string
-    {
-        return match (strlen($document)) {
-            11 => preg_replace('/(\d{3})(\d{3})(\d{3})(\d{2})/', '$1.$2.$3-$4', $document) ?? $document,
-            14 => preg_replace('/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/', '$1.$2.$3/$4-$5', $document) ?? $document,
-            default => $document,
-        };
-    }
-
-    private function formatPhone(?string $phone): ?string
-    {
-        if ($phone === null || $phone === '') {
-            return null;
-        }
-
-        return match (strlen($phone)) {
-            10 => preg_replace('/(\d{2})(\d{4})(\d{4})/', '($1) $2-$3', $phone) ?? $phone,
-            11 => preg_replace('/(\d{2})(\d{5})(\d{4})/', '($1) $2-$3', $phone) ?? $phone,
-            default => $phone,
-        };
     }
 }

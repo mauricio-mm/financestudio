@@ -1,7 +1,8 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, reactive, watch } from 'vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
-import { money } from '@/Utils/money';
+import { useIncrementalList } from '@/Composables/useIncrementalList';
+import { money, normalizeText, onlyDigits } from '@/Utils/formatters';
 
 const props = defineProps({
     initialEntries: {
@@ -35,50 +36,19 @@ const filterForm = reactive({
     status: props.filters.status || '',
 });
 
+const {
+    items: loadedEntries,
+    total: entriesTotal,
+    hasMore: hasMoreEntries,
+    loading: loadingEntries,
+    error: entriesError,
+    loadMore: loadMoreEntries,
+    sync: syncEntries,
+} = useIncrementalList(props.initialEntries, 'reports.entries');
+
+watch(() => props.initialEntries, (entries) => syncEntries(entries));
+
 const numberFormatter = new Intl.NumberFormat('pt-BR');
-
-const loadedEntries = ref([...(props.initialEntries.data || [])]);
-const entriesPage = ref(props.initialEntries.current_page || 1);
-const entriesTotal = ref(props.initialEntries.total || loadedEntries.value.length);
-const hasMoreEntries = ref(Boolean(props.initialEntries.has_more));
-const loadingEntries = ref(false);
-const entriesError = ref('');
-
-const appendUnique = (items, incoming, getKey) => {
-    const existing = new Set(items.map(getKey));
-
-    incoming.forEach((item) => {
-        const key = getKey(item);
-
-        if (!existing.has(key)) {
-            items.push(item);
-            existing.add(key);
-        }
-    });
-};
-
-const fetchJson = async (url) => {
-    const response = await fetch(url, {
-        headers: {
-            Accept: 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-        },
-    });
-
-    if (!response.ok) {
-        throw new Error('Nao foi possivel carregar os dados agora.');
-    }
-
-    return response.json();
-};
-
-const normalizeText = (value) => String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim();
-
-const onlyDigits = (value) => String(value || '').replace(/\D/g, '');
 
 const filteredStatuses = computed(() => {
     if (filterForm.type === 'receivable') {
@@ -91,6 +61,20 @@ const filteredStatuses = computed(() => {
 
     return props.statusOptions;
 });
+
+const matchesPersonSearch = (entry) => {
+    const search = normalizeText(filterForm.person_search);
+
+    if (!search) {
+        return true;
+    }
+
+    const searchDigits = onlyDigits(filterForm.person_search);
+    const personText = normalizeText(`${entry.person_name || ''} ${entry.person_document || ''} ${entry.person_document_digits || ''}`);
+    const documentDigits = onlyDigits(entry.person_document_digits);
+
+    return personText.includes(search) || Boolean(searchDigits && documentDigits.includes(searchDigits));
+};
 
 const filteredEntries = computed(() => loadedEntries.value.filter((entry) => {
     if (filterForm.date_from && (!entry.due_date || entry.due_date < filterForm.date_from)) {
@@ -113,75 +97,58 @@ const filteredEntries = computed(() => loadedEntries.value.filter((entry) => {
         return false;
     }
 
-    const personSearch = normalizeText(filterForm.person_search);
-
-    if (personSearch) {
-        const personDigits = onlyDigits(filterForm.person_search);
-        const personText = normalizeText(`${entry.person_name || ''} ${entry.person_document || ''} ${entry.person_document_digits || ''}`);
-        const documentDigits = onlyDigits(entry.person_document_digits);
-        const foundByText = personText.includes(personSearch);
-        const foundByDigits = personDigits && documentDigits.includes(personDigits);
-
-        if (!foundByText && !foundByDigits) {
-            return false;
-        }
-    }
-
-    return true;
+    return matchesPersonSearch(entry);
 }));
 
-const summary = computed(() => {
-    const totals = {
-        count: filteredEntries.value.length,
-        total_amount: 0,
-        receivable_total: 0,
-        payable_total: 0,
-        received_total: 0,
-        paid_total: 0,
-        pending_total: 0,
-        overdue_total: 0,
-        cancelled_total: 0,
-        balance: 0,
-    };
+const summary = computed(() => filteredEntries.value.reduce((totals, entry) => {
+    const amount = Number(entry.amount || 0);
 
-    filteredEntries.value.forEach((entry) => {
-        const amount = Number(entry.amount || 0);
+    totals.count += 1;
+    totals.total_amount += amount;
 
-        totals.total_amount += amount;
+    if (entry.type === 'receivable') {
+        totals.receivable_total += amount;
+    }
 
-        if (entry.type === 'receivable') {
-            totals.receivable_total += amount;
-        }
+    if (entry.type === 'payable') {
+        totals.payable_total += amount;
+    }
 
-        if (entry.type === 'payable') {
-            totals.payable_total += amount;
-        }
+    if (entry.status === 'pending') {
+        totals.pending_total += amount;
+    }
 
-        if (entry.status === 'pending') {
-            totals.pending_total += amount;
-        }
+    if (entry.status === 'received') {
+        totals.received_total += amount;
+    }
 
-        if (entry.status === 'received') {
-            totals.received_total += amount;
-        }
+    if (entry.status === 'paid') {
+        totals.paid_total += amount;
+    }
 
-        if (entry.status === 'paid') {
-            totals.paid_total += amount;
-        }
+    if (entry.status === 'overdue') {
+        totals.overdue_total += amount;
+    }
 
-        if (entry.status === 'overdue') {
-            totals.overdue_total += amount;
-        }
-
-        if (entry.status === 'cancelled') {
-            totals.cancelled_total += amount;
-        }
-    });
+    if (entry.status === 'cancelled') {
+        totals.cancelled_total += amount;
+    }
 
     totals.balance = totals.receivable_total - totals.payable_total;
 
     return totals;
-});
+}, {
+    count: 0,
+    total_amount: 0,
+    receivable_total: 0,
+    payable_total: 0,
+    received_total: 0,
+    paid_total: 0,
+    pending_total: 0,
+    overdue_total: 0,
+    cancelled_total: 0,
+    balance: 0,
+}));
 
 const summaryCards = computed(() => [
     {
@@ -237,29 +204,6 @@ const statusBadgeClasses = {
     paid: 'bg-sky-50 text-sky-700 ring-sky-100',
     overdue: 'bg-rose-50 text-rose-700 ring-rose-100',
     cancelled: 'bg-slate-100 text-slate-500 ring-slate-200',
-};
-
-const loadMoreEntries = async () => {
-    if (loadingEntries.value || !hasMoreEntries.value) {
-        return;
-    }
-
-    loadingEntries.value = true;
-    entriesError.value = '';
-
-    try {
-        const params = new URLSearchParams({ page: String(entriesPage.value + 1) });
-        const payload = await fetchJson(`${route('reports.entries')}?${params.toString()}`);
-
-        appendUnique(loadedEntries.value, payload.data || [], (entry) => entry.id);
-        entriesPage.value = payload.current_page || entriesPage.value;
-        entriesTotal.value = payload.total || entriesTotal.value;
-        hasMoreEntries.value = Boolean(payload.has_more);
-    } catch (error) {
-        entriesError.value = error.message;
-    } finally {
-        loadingEntries.value = false;
-    }
 };
 
 const clearFilters = () => {

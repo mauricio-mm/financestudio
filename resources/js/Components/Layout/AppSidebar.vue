@@ -1,7 +1,8 @@
 <script setup>
 import { Link } from '@inertiajs/vue3';
+import { ChartNoAxesCombined, LayoutDashboard, ReceiptText, Users } from '@lucide/vue';
 
-defineProps({
+const props = defineProps({
     show: {
         type: Boolean,
         default: false,
@@ -15,41 +16,25 @@ const navigationItems = [
         name: 'Dashboard',
         href: '/dashboard',
         routeName: 'dashboard',
-        icon: [
-            'M3 13h8V3H3v10Z',
-            'M13 21h8v-8h-8v8Z',
-            'M13 3v8h8V3h-8Z',
-            'M3 21h8v-6H3v6Z',
-        ],
+        icon: LayoutDashboard,
     },
     {
         name: 'Pessoas/Empresas',
         href: '/pessoas-empresas',
         routeName: 'people.*',
-        icon: [
-            'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2',
-            'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z',
-            'M22 21v-2a4 4 0 0 0-3-3.87',
-            'M16 3.13a4 4 0 0 1 0 7.75',
-        ],
+        icon: Users,
     },
     {
         name: 'Contas',
         href: '/contas',
         routeName: 'financial-entries.*',
-        icon: [
-            'M12 2v20',
-            'M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6',
-        ],
+        icon: ReceiptText,
     },
     {
         name: 'Relatorios',
         href: '/relatorios',
         routeName: 'reports.*',
-        icon: [
-            'M3 3v18h18',
-            'M7 15l4-4 3 3 5-7',
-        ],
+        icon: ChartNoAxesCombined,
     },
 ];
 
@@ -100,57 +85,19 @@ const closeSidebar = () => {
         </div>
 
         <nav class="flex-1 space-y-1 px-4 py-5">
-            <template v-for="item in navigationItems" :key="item.name">
-                <Link
-                    v-if="! item.disabled"
-                    :href="item.href"
-                    class="group flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition"
-                    :class="route().current(item.routeName)
-                        ? 'bg-white text-slate-900 shadow-sm'
-                        : 'text-white/70 hover:bg-white/10 hover:text-white'"
-                    @click="closeSidebar"
-                >
-                    <svg
-                        class="size-5 shrink-0"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.8"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        aria-hidden="true"
-                    >
-                        <path v-for="path in item.icon" :key="path" :d="path" />
-                    </svg>
-                    <span>{{ item.name }}</span>
-                </Link>
-
-                <button
-                    v-else
-                    type="button"
-                    class="flex w-full items-center justify-between gap-3 rounded-lg px-4 py-3 text-sm font-medium text-white/40 transition hover:bg-white/5 hover:text-white/70"
-                    title="Sera ativado quando criarmos este modulo"
-                >
-                    <span class="flex min-w-0 items-center gap-3">
-                        <svg
-                            class="size-5 shrink-0"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="1.8"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            aria-hidden="true"
-                        >
-                            <path v-for="path in item.icon" :key="path" :d="path" />
-                        </svg>
-                        <span class="truncate">{{ item.name }}</span>
-                    </span>
-                    <span class="rounded bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/40">
-                        Breve
-                    </span>
-                </button>
-            </template>
+            <Link
+                v-for="item in navigationItems"
+                :key="item.name"
+                :href="item.href"
+                class="group flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition"
+                :class="route().current(item.routeName)
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-white/70 hover:bg-white/10 hover:text-white'"
+                @click="closeSidebar"
+            >
+                <component :is="item.icon" class="size-5 shrink-0" stroke-width="1.8" />
+                <span>{{ item.name }}</span>
+            </Link>
         </nav>
 
         <div class="border-t border-white/10 p-4">

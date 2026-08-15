@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import InputError from '@/Components/InputError.vue';
+import { formatDocument, formatPhone, onlyDigits } from '@/Utils/formatters';
 
 const props = defineProps({
     form: {
@@ -19,45 +20,8 @@ const props = defineProps({
 
 const emit = defineEmits(['submit', 'cancel']);
 
-const onlyDigits = (value, maxLength) => value.replace(/\D/g, '').slice(0, maxLength);
-
-const formatCpf = (digits) => digits
-    .replace(/^(\d{3})(\d)/, '$1.$2')
-    .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
-    .replace(/^(\d{3})\.(\d{3})\.(\d{3})(\d)/, '$1.$2.$3-$4');
-
-const formatCnpj = (digits) => digits
-    .replace(/^(\d{2})(\d)/, '$1.$2')
-    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
-    .replace(/^(\d{2})\.(\d{3})\.(\d{3})(\d)/, '$1.$2.$3/$4')
-    .replace(/^(\d{2})\.(\d{3})\.(\d{3})\/(\d{4})(\d)/, '$1.$2.$3/$4-$5');
-
-const formatDocument = (value) => {
-    const digits = onlyDigits(value, 14);
-
-    if (digits.length <= 11) {
-        return formatCpf(digits);
-    }
-
-    return formatCnpj(digits);
-};
-
-const formatPhone = (value) => {
-    const digits = onlyDigits(value, 11);
-
-    if (digits.length <= 10) {
-        return digits
-            .replace(/^(\d{2})(\d)/, '($1) $2')
-            .replace(/^(\(\d{2}\) \d{4})(\d)/, '$1-$2');
-    }
-
-    return digits
-        .replace(/^(\d{2})(\d)/, '($1) $2')
-        .replace(/^(\(\d{2}\) \d{5})(\d)/, '$1-$2');
-};
-
 const documentKindLabel = computed(() => {
-    const length = onlyDigits(props.form.document, 14).length;
+    const length = onlyDigits(props.form.document).slice(0, 14).length;
 
     if (length === 0) {
         return 'Digite CPF ou CNPJ';
@@ -71,7 +35,7 @@ const documentKindLabel = computed(() => {
 });
 
 const phoneKindLabel = computed(() => {
-    const length = onlyDigits(props.form.phone || '', 11).length;
+    const length = onlyDigits(props.form.phone).slice(0, 11).length;
 
     if (length === 0) {
         return 'Telefone com DDD';

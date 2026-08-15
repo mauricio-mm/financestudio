@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\FinancialEntry;
 use App\Models\PersonType;
+use App\Support\Format;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -76,11 +77,11 @@ class FinancialReportController extends Controller
             'person_name' => $entry->person?->name,
             'person_type_label' => $entry->person?->personType?->name,
             'person_type_slug' => $entry->person?->personType?->slug,
-            'person_document' => $entry->person ? $this->formatDocument($entry->person->document) : null,
+            'person_document' => $entry->person ? Format::document($entry->person->document) : null,
             'person_document_digits' => $entry->person?->document,
             'description' => $entry->description,
             'amount' => (float) $entry->amount,
-            'amount_formatted' => $this->money($entry->amount),
+            'amount_formatted' => Format::money($entry->amount),
             'issue_date' => $entry->issue_date?->format('Y-m-d'),
             'issue_date_formatted' => $entry->issue_date?->format('d/m/Y'),
             'due_date' => $entry->due_date?->format('Y-m-d'),
@@ -133,20 +134,6 @@ class FinancialReportController extends Controller
             FinancialEntry::STATUS_OVERDUE => 'Vencido',
             FinancialEntry::STATUS_CANCELLED => 'Cancelado',
             default => $status,
-        };
-    }
-
-    private function money(mixed $value): string
-    {
-        return 'R$ '.number_format((float) $value, 2, ',', '.');
-    }
-
-    private function formatDocument(string $document): string
-    {
-        return match (strlen($document)) {
-            11 => preg_replace('/(\d{3})(\d{3})(\d{3})(\d{2})/', '$1.$2.$3-$4', $document) ?? $document,
-            14 => preg_replace('/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/', '$1.$2.$3/$4-$5', $document) ?? $document,
-            default => $document,
         };
     }
 }

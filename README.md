@@ -9,6 +9,8 @@ Sistema web em Laravel + Vue/Inertia para controle simplificado de contas a paga
 - Banco: MySQL no ambiente local do Laragon
 - Autenticacao: Laravel Jetstream/Fortify
 - Estilos: Tailwind CSS
+- Graficos: Chart.js + vue-chartjs
+- Icones: @lucide/vue
 - Testes: PHPUnit/Pest via `php artisan test`
 
 ## Como executar
@@ -38,11 +40,21 @@ app/Models
   Person.php               -> pessoas/empresas cadastradas
   PersonType.php           -> tipos Cliente e Fornecedor
 
+app/Support
+  Format.php               -> formatacao/normalizacao compartilhada no backend
+
 app/Http/Controllers
   DashboardController.php        -> dados da tela inicial
   PersonController.php           -> CRUD de Pessoas/Empresas
   FinancialEntryController.php   -> CRUD de Contas
   FinancialReportController.php  -> Relatorio financeiro
+
+resources/js/Utils
+  formatters.js            -> formatacao/normalizacao compartilhada no frontend
+  money.js                 -> compatibilidade para imports antigos de money
+
+resources/js/Composables
+  useIncrementalList.js    -> carregamento incremental em blocos
 
 resources/js/Pages
   Dashboard.vue                  -> tela inicial
@@ -141,8 +153,8 @@ Fluxo:
 Usuario acessa Dashboard
 -> routes/web.php chama DashboardController
 -> DashboardController consulta people, person_types e financial_entries
--> monta props: people, metrics, status, cashFlow, upcomingBills
--> resources/js/Pages/Dashboard.vue renderiza os cards e componentes
+-> monta props: people, metrics, cashFlow, upcomingBills
+-> resources/js/Pages/Dashboard.vue renderiza cards e graficos
 ```
 
 Arquivos envolvidos:
@@ -152,31 +164,26 @@ app/Http/Controllers/DashboardController.php
 resources/js/Pages/Dashboard.vue
 resources/js/Components/Dashboard/SummaryMetricCard.vue
 resources/js/Components/Dashboard/CashFlowChart.vue
-resources/js/Components/Dashboard/ManagementTotalsCard.vue
-resources/js/Components/Dashboard/StatusBreakdownCard.vue
+resources/js/Components/Dashboard/FinancialRadarChart.vue
 resources/js/Components/Dashboard/UpcomingBillsCard.vue
 ```
 
 Dados exibidos hoje:
 
-- Clientes cadastrados
-- Fornecedores cadastrados
-- Total a receber
-- Total recebido
-- Vencido a receber
-- Total a pagar
-- Total pago
-- Vencido a pagar
-- Saldo previsto
-- Saldo realizado
-- Fluxo de caixa mensal
+- Pessoas: clientes e fornecedores
+- A receber: pendente, recebido e vencido
+- A pagar: pendente, pago e vencido
+- Saldo previsto e realizado
+- Fluxo de caixa mensal com Chart.js
+- Radar gerencial com metricas normalizadas
 - Proximas contas pendentes/vencidas
 
-Observacao sobre grafico:
+Observacao sobre graficos:
 
-- O grafico atual de fluxo de caixa nao usa biblioteca externa.
-- Ele foi feito manualmente com Vue `computed`, divs e classes Tailwind/CSS.
-- Arquivo: `resources/js/Components/Dashboard/CashFlowChart.vue`
+- Os graficos usam Chart.js via `vue-chartjs`.
+- O grafico de barras fica em `resources/js/Components/Dashboard/CashFlowChart.vue`.
+- O grafico radar fica em `resources/js/Components/Dashboard/FinancialRadarChart.vue`.
+- Os icones da interface usam `@lucide/vue`.
 
 ## Pessoas/Empresas
 
@@ -200,7 +207,7 @@ Fluxo de carregar mais:
 
 ```text
 Botao Carregar +20 cadastros
--> People/Index.vue faz fetch para route('people.data')
+-> People/Index.vue usa useIncrementalList
 -> GET /pessoas-empresas/dados
 -> PersonController::data()
 -> PersonController::peoplePage()
@@ -367,7 +374,7 @@ Fluxo de carregar mais:
 
 ```text
 Botao Carregar +20 contas
--> Reports/Financial.vue faz fetch para route('reports.entries')
+-> Reports/Financial.vue usa useIncrementalList
 -> GET /relatorios/dados
 -> FinancialReportController::entries()
 -> entryPage()
@@ -423,10 +430,16 @@ FinancialEntryController::authorizeEntry()
 
 CPF/CNPJ, telefone e valor sao normalizados antes de salvar.
 
+Backend:
+
 ```text
-CPF/CNPJ -> somente numeros
-Telefone -> somente numeros
-Valor    -> formato decimal aceito pelo banco
+app/Support/Format.php
+```
+
+Frontend:
+
+```text
+resources/js/Utils/formatters.js
 ```
 
 ### Filtros locais com carregamento incremental
@@ -436,6 +449,13 @@ Usado em:
 ```text
 Pessoas/Empresas
 Relatorios
+```
+
+Base compartilhada:
+
+```text
+resources/js/Composables/useIncrementalList.js
+resources/js/Utils/formatters.js
 ```
 
 Ideia:

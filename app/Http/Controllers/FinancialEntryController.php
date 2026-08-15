@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\FinancialEntry;
 use App\Models\Person;
 use App\Models\PersonType;
+use App\Support\Format;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -93,7 +94,7 @@ class FinancialEntryController extends Controller
     private function validatedData(Request $request): array
     {
         $request->merge([
-            'amount' => $this->normalizeAmount($request->input('amount')),
+            'amount' => Format::decimal($request->input('amount')),
         ]);
 
         $type = $this->activeType($request->input('type'));
@@ -165,7 +166,7 @@ class FinancialEntryController extends Controller
             ->map(fn (Person $person) => [
                 'value' => $person->id,
                 'label' => $person->name,
-                'document' => $this->formatDocument($person->document),
+                'document' => Format::document($person->document),
             ])
             ->all();
     }
@@ -175,10 +176,10 @@ class FinancialEntryController extends Controller
         $config = $this->typeConfig($type);
 
         return [
-            'pending' => $this->money((clone $query)->where('status', FinancialEntry::STATUS_PENDING)->sum('amount')),
-            'settled' => $this->money((clone $query)->where('status', $config['settled_status'])->sum('amount')),
-            'overdue' => $this->money((clone $query)->where('status', FinancialEntry::STATUS_OVERDUE)->sum('amount')),
-            'cancelled' => $this->money((clone $query)->where('status', FinancialEntry::STATUS_CANCELLED)->sum('amount')),
+            'pending' => Format::money((clone $query)->where('status', FinancialEntry::STATUS_PENDING)->sum('amount')),
+            'settled' => Format::money((clone $query)->where('status', $config['settled_status'])->sum('amount')),
+            'overdue' => Format::money((clone $query)->where('status', FinancialEntry::STATUS_OVERDUE)->sum('amount')),
+            'cancelled' => Format::money((clone $query)->where('status', FinancialEntry::STATUS_CANCELLED)->sum('amount')),
         ];
     }
 
@@ -191,7 +192,7 @@ class FinancialEntryController extends Controller
             'person_name' => $entry->person?->name,
             'description' => $entry->description,
             'amount' => (string) $entry->amount,
-            'amount_formatted' => $this->money($entry->amount),
+            'amount_formatted' => Format::money($entry->amount),
             'issue_date' => $entry->issue_date?->format('Y-m-d'),
             'issue_date_formatted' => $entry->issue_date?->format('d/m/Y'),
             'due_date' => $entry->due_date?->format('Y-m-d'),
@@ -266,30 +267,5 @@ class FinancialEntryController extends Controller
             'settlement_label' => 'Recebimento',
             'settlement_label_lower' => 'recebimento',
         ];
-    }
-
-    private function normalizeAmount(mixed $value): string
-    {
-        $value = trim((string) $value);
-
-        if (str_contains($value, ',') && str_contains($value, '.')) {
-            $value = str_replace('.', '', $value);
-        }
-
-        return str_replace(',', '.', $value);
-    }
-
-    private function money(mixed $value): string
-    {
-        return 'R$ '.number_format((float) $value, 2, ',', '.');
-    }
-
-    private function formatDocument(string $document): string
-    {
-        return match (strlen($document)) {
-            11 => preg_replace('/(\d{3})(\d{3})(\d{3})(\d{2})/', '$1.$2.$3-$4', $document) ?? $document,
-            14 => preg_replace('/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/', '$1.$2.$3/$4-$5', $document) ?? $document,
-            default => $document,
-        };
     }
 }

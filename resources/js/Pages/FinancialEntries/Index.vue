@@ -123,15 +123,6 @@ const statusBadgeClasses = {
     cancelled: 'bg-slate-100 text-slate-500 ring-slate-200',
 };
 
-const normalizeAmount = (value) => {
-    let normalized = String(value || '').trim();
-
-    if (normalized.includes(',') && normalized.includes('.')) {
-        normalized = normalized.replaceAll('.', '');
-    }
-
-    return normalized.replace(',', '.');
-};
 
 const switchType = (type) => {
     router.get(route('financial-entries.index'), { type }, {

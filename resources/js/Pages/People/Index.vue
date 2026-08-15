@@ -3,7 +3,9 @@ import { computed, reactive, ref, watch } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Modal from '@/Components/Modal.vue';
+import { useIncrementalList } from '@/Composables/useIncrementalList';
 import PersonForm from '@/Pages/People/Partials/PersonForm.vue';
+import { normalizeText, onlyDigits } from '@/Utils/formatters';
 
 const props = defineProps({
     people: {
@@ -25,12 +27,17 @@ const filterForm = reactive({
     person_type_id: props.filters.person_type_id || '',
 });
 
-const loadedPeople = ref([]);
-const peoplePage = ref(1);
-const peopleTotal = ref(0);
-const hasMorePeople = ref(false);
-const loadingPeople = ref(false);
-const peopleError = ref('');
+const {
+    items: loadedPeople,
+    total: peopleTotal,
+    hasMore: hasMorePeople,
+    loading: loadingPeople,
+    error: peopleError,
+    loadMore: loadMorePeople,
+    sync: syncPeople,
+} = useIncrementalList(props.people, 'people.data');
+
+watch(() => props.people, (people) => syncPeople(people));
 
 const showingPersonModal = ref(false);
 const editingPerson = ref(null);
@@ -46,39 +53,6 @@ const personForm = useForm({
 const modalTitle = computed(() => (editingPerson.value ? 'Editar cadastro' : 'Novo cadastro'));
 const submitLabel = computed(() => (editingPerson.value ? 'Salvar alteracoes' : 'Cadastrar'));
 
-const onlyDigits = (value) => String(value || '').replace(/\D/g, '');
-const normalizeText = (value) => String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim();
-
-const appendUnique = (items, incoming, getKey) => {
-    const existing = new Set(items.map(getKey));
-
-    incoming.forEach((item) => {
-        const key = getKey(item);
-
-        if (!existing.has(key)) {
-            items.push(item);
-            existing.add(key);
-        }
-    });
-};
-
-const syncPeople = (people) => {
-    loadedPeople.value = [...(people.data || [])];
-    peoplePage.value = people.current_page || 1;
-    peopleTotal.value = people.total || loadedPeople.value.length;
-    hasMorePeople.value = Boolean(people.has_more);
-};
-
-syncPeople(props.people);
-
-watch(() => props.people, (people) => {
-    syncPeople(people);
-});
-
 const filteredPeople = computed(() => loadedPeople.value.filter((person) => {
     if (filterForm.person_type_id && String(person.person_type_id) !== String(filterForm.person_type_id)) {
         return false;
@@ -93,49 +67,9 @@ const filteredPeople = computed(() => loadedPeople.value.filter((person) => {
     const searchDigits = onlyDigits(filterForm.search);
     const searchableText = normalizeText(`${person.name || ''} ${person.email || ''} ${person.document || ''} ${person.phone || ''}`);
     const searchableDigits = `${person.document_digits || ''} ${person.phone_digits || ''}`;
-    const foundByText = searchableText.includes(search);
-    const foundByDigits = searchDigits && searchableDigits.includes(searchDigits);
 
-    return foundByText || foundByDigits;
+    return searchableText.includes(search) || Boolean(searchDigits && searchableDigits.includes(searchDigits));
 }));
-
-const fetchJson = async (url) => {
-    const response = await fetch(url, {
-        headers: {
-            Accept: 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-        },
-    });
-
-    if (!response.ok) {
-        throw new Error('Nao foi possivel carregar os dados agora.');
-    }
-
-    return response.json();
-};
-
-const loadMorePeople = async () => {
-    if (loadingPeople.value || !hasMorePeople.value) {
-        return;
-    }
-
-    loadingPeople.value = true;
-    peopleError.value = '';
-
-    try {
-        const params = new URLSearchParams({ page: String(peoplePage.value + 1) });
-        const payload = await fetchJson(`${route('people.data')}?${params.toString()}`);
-
-        appendUnique(loadedPeople.value, payload.data || [], (person) => person.id);
-        peoplePage.value = payload.current_page || peoplePage.value;
-        peopleTotal.value = payload.total || peopleTotal.value;
-        hasMorePeople.value = Boolean(payload.has_more);
-    } catch (error) {
-        peopleError.value = error.message;
-    } finally {
-        loadingPeople.value = false;
-    }
-};
 
 const resetPersonForm = (person = null) => {
     personForm.clearErrors();

@@ -15,12 +15,10 @@ class DashboardController extends Controller
     public function __invoke(Request $request): Response
     {
         $userId = $request->user()->id;
-        $metrics = $this->metrics($userId);
 
         return Inertia::render('Dashboard', [
             'people' => $this->peopleCounts($userId),
-            'metrics' => $metrics,
-            'status' => $this->statusBreakdown($metrics),
+            'metrics' => $this->metrics($userId),
             'cashFlow' => $this->cashFlow($userId),
             'upcomingBills' => $this->upcomingBills($userId),
         ]);
@@ -67,24 +65,6 @@ class DashboardController extends Controller
             'payable_count' => (clone $baseQuery)->where('type', FinancialEntry::TYPE_PAYABLE)->count(),
             'forecast_balance' => ($receivablePending + $receivableOverdue) - ($payablePending + $payableOverdue),
             'realized_balance' => $receivableReceived - $payablePaid,
-        ];
-    }
-
-    private function statusBreakdown(array $metrics): array
-    {
-        return [
-            'receivable' => [
-                ['label' => 'Pendente', 'amount' => $metrics['receivable_pending'], 'color' => 'bg-amber-400'],
-                ['label' => 'Recebido', 'amount' => $metrics['receivable_received'], 'color' => 'bg-emerald-500'],
-                ['label' => 'Vencido', 'amount' => $metrics['receivable_overdue'], 'color' => 'bg-rose-500'],
-                ['label' => 'Cancelado', 'amount' => $metrics['receivable_cancelled'], 'color' => 'bg-slate-300'],
-            ],
-            'payable' => [
-                ['label' => 'Pendente', 'amount' => $metrics['payable_pending'], 'color' => 'bg-sky-500'],
-                ['label' => 'Pago', 'amount' => $metrics['payable_paid'], 'color' => 'bg-emerald-500'],
-                ['label' => 'Vencido', 'amount' => $metrics['payable_overdue'], 'color' => 'bg-rose-500'],
-                ['label' => 'Cancelado', 'amount' => $metrics['payable_cancelled'], 'color' => 'bg-slate-300'],
-            ],
         ];
     }
 
