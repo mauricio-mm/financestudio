@@ -14,41 +14,108 @@ class FinancialReportTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_financial_report_filters_entries_and_totals(): void
+    public function test_financial_report_loads_initial_entries_and_filter_options(): void
     {
         $user = User::factory()->create();
-        $otherUser = User::factory()->create();
-        $customer = $this->personFor($user, PersonType::CUSTOMER, 'Cliente Atlas', '12345678901');
-        $supplier = $this->personFor($user, PersonType::SUPPLIER, 'Fornecedor Atlas', '11222333000181');
-        $otherCustomer = $this->personFor($otherUser, PersonType::CUSTOMER, 'Cliente Oculto', '98765432100');
+        $customer = $this->personFor($user, PersonType::CUSTOMER, 'Cliente Atlas', $this->cpf(1));
+        $supplier = $this->personFor($user, PersonType::SUPPLIER, 'Fornecedor Atlas', $this->cnpj(1));
 
-        FinancialEntry::create($this->entryData($user, $customer, FinancialEntry::TYPE_RECEIVABLE, FinancialEntry::STATUS_PENDING, '100.00', '2026-08-20', 'Recebimento filtrado'));
-        FinancialEntry::create($this->entryData($user, $customer, FinancialEntry::TYPE_RECEIVABLE, FinancialEntry::STATUS_RECEIVED, '50.00', '2026-08-22', 'Recebimento fora do status'));
-        FinancialEntry::create($this->entryData($user, $supplier, FinancialEntry::TYPE_PAYABLE, FinancialEntry::STATUS_PENDING, '30.00', '2026-08-25', 'Pagamento fora do tipo'));
-        FinancialEntry::create($this->entryData($otherUser, $otherCustomer, FinancialEntry::TYPE_RECEIVABLE, FinancialEntry::STATUS_PENDING, '999.00', '2026-08-20', 'Recebimento oculto'));
+        for ($index = 1; $index <= 21; $index++) {
+            FinancialEntry::create($this->entryData(
+                $user,
+                $index % 2 === 0 ? $supplier : $customer,
+                $index % 2 === 0 ? FinancialEntry::TYPE_PAYABLE : FinancialEntry::TYPE_RECEIVABLE,
+                FinancialEntry::STATUS_PENDING,
+                (string) (100 + $index),
+                sprintf('2026-08-%02d', $index),
+                "Conta {$index}",
+            ));
+        }
 
         $this
             ->actingAs($user)
-            ->get(route('reports.index', [
-                'date_from' => '2026-08-01',
-                'date_to' => '2026-08-31',
-                'person_id' => $customer->id,
-                'type' => FinancialEntry::TYPE_RECEIVABLE,
-                'status' => FinancialEntry::STATUS_PENDING,
-            ]))
+            ->get(route('reports.index'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Reports/Financial')
-                ->where('summary.count', 1)
-                ->where('summary.total_amount', 100)
-                ->where('summary.receivable_total', 100)
-                ->where('summary.payable_total', 0)
-                ->where('summary.pending_total', 100)
-                ->where('summary.balance', 100)
-                ->has('report.data', 1)
-                ->where('report.data.0.description', 'Recebimento filtrado')
-                ->where('report.data.0.person_name', 'Cliente Atlas')
+                ->has('initialEntries.data', 20)
+                ->where('initialEntries.total', 21)
+                ->where('initialEntries.has_more', true)
+                ->where('initialEntries.data.0.person_type_slug', PersonType::CUSTOMER)
+                ->where('initialEntries.data.0.person_document', '000.000.000-01')
+                ->where('filters.person_type', '')
+                ->where('filters.person_search', '')
+                ->where('filters.type', '')
+                ->has('personTypeOptions', 2)
+                ->where('personTypeOptions.0.value', PersonType::CUSTOMER)
+                ->where('personTypeOptions.1.value', PersonType::SUPPLIER)
             );
+    }
+
+    public function test_report_entries_endpoint_loads_more_entries_without_leaking_other_users_data(): void
+    {
+        $user = User::factory()->create();
+        $otherUser = User::factory()->create();
+        $customer = $this->personFor($user, PersonType::CUSTOMER, 'Cliente Atlas', $this->cpf(1));
+        $otherCustomer = $this->personFor($otherUser, PersonType::CUSTOMER, 'Cliente Oculto', $this->cpf(1));
+
+        for ($index = 1; $index <= 21; $index++) {
+            FinancialEntry::create($this->entryData(
+                $user,
+                $customer,
+                FinancialEntry::TYPE_RECEIVABLE,
+                FinancialEntry::STATUS_PENDING,
+                (string) (100 + $index),
+                sprintf('2026-08-%02d', $index),
+                "Conta {$index}",
+            ));
+        }
+
+        FinancialEntry::create($this->entryData(
+            $otherUser,
+            $otherCustomer,
+            FinancialEntry::TYPE_RECEIVABLE,
+            FinancialEntry::STATUS_PENDING,
+            '999.00',
+            '2026-08-01',
+            'Conta oculta',
+        ));
+
+        $this
+            ->actingAs($user)
+            ->getJson(route('reports.entries', ['page' => 2]))
+            ->assertOk()
+            ->assertJsonPath('current_page', 2)
+            ->assertJsonPath('total', 21)
+            ->assertJsonPath('has_more', false)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.description', 'Conta 21');
+    }
+
+    public function test_report_entries_payload_contains_person_data_for_local_search(): void
+    {
+        $user = User::factory()->create();
+        $supplier = $this->personFor($user, PersonType::SUPPLIER, 'Fornecedor Busca', $this->cnpj(7));
+
+        FinancialEntry::create($this->entryData(
+            $user,
+            $supplier,
+            FinancialEntry::TYPE_PAYABLE,
+            FinancialEntry::STATUS_PAID,
+            '250.00',
+            '2026-08-10',
+            'Pagamento buscavel',
+        ));
+
+        $this
+            ->actingAs($user)
+            ->getJson(route('reports.entries'))
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.person_name', 'Fornecedor Busca')
+            ->assertJsonPath('data.0.person_type_slug', PersonType::SUPPLIER)
+            ->assertJsonPath('data.0.person_document', '00.000.000/0000-07')
+            ->assertJsonPath('data.0.person_document_digits', $this->cnpj(7));
     }
 
     private function personFor(User $user, string $typeSlug, string $name, string $document): Person
@@ -78,5 +145,15 @@ class FinancialReportTest extends TestCase
                 ? $dueDate
                 : null,
         ];
+    }
+
+    private function cpf(int $index): string
+    {
+        return str_pad((string) $index, 11, '0', STR_PAD_LEFT);
+    }
+
+    private function cnpj(int $index): string
+    {
+        return str_pad((string) $index, 14, '0', STR_PAD_LEFT);
     }
 }

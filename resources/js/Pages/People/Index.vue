@@ -1,6 +1,6 @@
 <script setup>
-import { computed, reactive, ref } from 'vue';
-import { Link, router, useForm } from '@inertiajs/vue3';
+import { computed, reactive, ref, watch } from 'vue';
+import { router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Modal from '@/Components/Modal.vue';
 import PersonForm from '@/Pages/People/Partials/PersonForm.vue';
@@ -25,6 +25,13 @@ const filterForm = reactive({
     person_type_id: props.filters.person_type_id || '',
 });
 
+const loadedPeople = ref([]);
+const peoplePage = ref(1);
+const peopleTotal = ref(0);
+const hasMorePeople = ref(false);
+const loadingPeople = ref(false);
+const peopleError = ref('');
+
 const showingPersonModal = ref(false);
 const editingPerson = ref(null);
 
@@ -40,6 +47,95 @@ const modalTitle = computed(() => (editingPerson.value ? 'Editar cadastro' : 'No
 const submitLabel = computed(() => (editingPerson.value ? 'Salvar alteracoes' : 'Cadastrar'));
 
 const onlyDigits = (value) => String(value || '').replace(/\D/g, '');
+const normalizeText = (value) => String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
+const appendUnique = (items, incoming, getKey) => {
+    const existing = new Set(items.map(getKey));
+
+    incoming.forEach((item) => {
+        const key = getKey(item);
+
+        if (!existing.has(key)) {
+            items.push(item);
+            existing.add(key);
+        }
+    });
+};
+
+const syncPeople = (people) => {
+    loadedPeople.value = [...(people.data || [])];
+    peoplePage.value = people.current_page || 1;
+    peopleTotal.value = people.total || loadedPeople.value.length;
+    hasMorePeople.value = Boolean(people.has_more);
+};
+
+syncPeople(props.people);
+
+watch(() => props.people, (people) => {
+    syncPeople(people);
+});
+
+const filteredPeople = computed(() => loadedPeople.value.filter((person) => {
+    if (filterForm.person_type_id && String(person.person_type_id) !== String(filterForm.person_type_id)) {
+        return false;
+    }
+
+    const search = normalizeText(filterForm.search);
+
+    if (!search) {
+        return true;
+    }
+
+    const searchDigits = onlyDigits(filterForm.search);
+    const searchableText = normalizeText(`${person.name || ''} ${person.email || ''} ${person.document || ''} ${person.phone || ''}`);
+    const searchableDigits = `${person.document_digits || ''} ${person.phone_digits || ''}`;
+    const foundByText = searchableText.includes(search);
+    const foundByDigits = searchDigits && searchableDigits.includes(searchDigits);
+
+    return foundByText || foundByDigits;
+}));
+
+const fetchJson = async (url) => {
+    const response = await fetch(url, {
+        headers: {
+            Accept: 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+    });
+
+    if (!response.ok) {
+        throw new Error('Nao foi possivel carregar os dados agora.');
+    }
+
+    return response.json();
+};
+
+const loadMorePeople = async () => {
+    if (loadingPeople.value || !hasMorePeople.value) {
+        return;
+    }
+
+    loadingPeople.value = true;
+    peopleError.value = '';
+
+    try {
+        const params = new URLSearchParams({ page: String(peoplePage.value + 1) });
+        const payload = await fetchJson(`${route('people.data')}?${params.toString()}`);
+
+        appendUnique(loadedPeople.value, payload.data || [], (person) => person.id);
+        peoplePage.value = payload.current_page || peoplePage.value;
+        peopleTotal.value = payload.total || peopleTotal.value;
+        hasMorePeople.value = Boolean(payload.has_more);
+    } catch (error) {
+        peopleError.value = error.message;
+    } finally {
+        loadingPeople.value = false;
+    }
+};
 
 const resetPersonForm = (person = null) => {
     personForm.clearErrors();
@@ -94,21 +190,9 @@ const submitPerson = () => {
     personForm.post(route('people.store'), options);
 };
 
-const applyFilters = () => {
-    router.get(route('people.index'), filterForm, {
-        preserveState: true,
-        replace: true,
-    });
-};
-
 const clearFilters = () => {
     filterForm.search = '';
     filterForm.person_type_id = '';
-
-    router.get(route('people.index'), {}, {
-        preserveState: true,
-        replace: true,
-    });
 };
 
 const destroyPerson = (person) => {
@@ -142,7 +226,7 @@ const destroyPerson = (person) => {
                         Cadastros comerciais
                     </h2>
                     <p class="mt-1 text-sm text-slate-500">
-                        Clientes e fornecedores usados nas contas a receber e a pagar.
+                        {{ filteredPeople.length }} cadastros filtrados em {{ loadedPeople.length }} carregados.
                     </p>
                 </div>
 
@@ -156,7 +240,7 @@ const destroyPerson = (person) => {
             </div>
 
             <section class="rounded-lg bg-white p-5 shadow-sm ring-1 ring-black/5">
-                <form class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px_auto]" @submit.prevent="applyFilters">
+                <form class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px_auto]" @submit.prevent>
                     <div>
                         <label for="search" class="text-sm font-medium text-slate-700">
                             Buscar
@@ -164,15 +248,15 @@ const destroyPerson = (person) => {
                         <input
                             id="search"
                             v-model="filterForm.search"
-                            type="text"
+                            type="search"
                             class="mt-2 w-full rounded-lg border-slate-200 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500"
-                            placeholder="Nome, documento, e-mail ou telefone"
+                            placeholder="Nome, CPF/CNPJ, e-mail ou telefone"
                         >
                     </div>
 
                     <div>
                         <label for="type" class="text-sm font-medium text-slate-700">
-                            Tipo
+                            Cliente/Fornecedor
                         </label>
                         <select
                             id="type"
@@ -189,12 +273,6 @@ const destroyPerson = (person) => {
                     </div>
 
                     <div class="flex items-end gap-2">
-                        <button
-                            type="submit"
-                            class="inline-flex w-full justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 lg:w-auto"
-                        >
-                            Filtrar
-                        </button>
                         <button
                             type="button"
                             class="inline-flex w-full justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 lg:w-auto"
@@ -230,13 +308,13 @@ const destroyPerson = (person) => {
                         </thead>
 
                         <tbody class="divide-y divide-slate-100">
-                            <tr v-if="people.data.length === 0">
+                            <tr v-if="filteredPeople.length === 0">
                                 <td colspan="5" class="px-5 py-10 text-center text-sm text-slate-500">
-                                    Nenhuma pessoa/empresa encontrada.
+                                    Nenhuma pessoa/empresa encontrada nos dados carregados.
                                 </td>
                             </tr>
 
-                            <tr v-for="person in people.data" :key="person.id" class="hover:bg-slate-50/70">
+                            <tr v-for="person in filteredPeople" :key="person.id" class="hover:bg-slate-50/70">
                                 <td class="px-5 py-4">
                                     <p class="text-sm font-semibold text-slate-900">
                                         {{ person.name }}
@@ -284,31 +362,28 @@ const destroyPerson = (person) => {
                     </table>
                 </div>
 
-                <div
-                    v-if="people.links.length > 3"
-                    class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-4"
-                >
-                    <p class="text-sm text-slate-500">
-                        Mostrando {{ people.from }} a {{ people.to }} de {{ people.total }} registros
-                    </p>
-
-                    <div class="flex flex-wrap gap-1">
-                        <template v-for="link in people.links" :key="link.label">
-                            <Link
-                                v-if="link.url"
-                                :href="link.url"
-                                preserve-scroll
-                                class="rounded-lg px-3 py-1.5 text-sm font-medium transition"
-                                :class="link.active ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'"
-                                v-html="link.label"
-                            />
-                            <span
-                                v-else
-                                class="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-300"
-                                v-html="link.label"
-                            />
-                        </template>
+                <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-4">
+                    <div>
+                        <p class="text-sm text-slate-500">
+                            Mostrando {{ filteredPeople.length }} filtrados em {{ loadedPeople.length }} cadastros carregados de {{ peopleTotal }} disponiveis.
+                        </p>
+                        <p v-if="peopleError" class="mt-2 text-xs font-medium text-rose-600">
+                            {{ peopleError }}
+                        </p>
                     </div>
+
+                    <button
+                        v-if="hasMorePeople"
+                        type="button"
+                        class="inline-flex justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                        :disabled="loadingPeople"
+                        @click="loadMorePeople"
+                    >
+                        {{ loadingPeople ? 'Carregando...' : 'Carregar +20 cadastros' }}
+                    </button>
+                    <span v-else class="text-sm font-medium text-slate-400">
+                        Todos os cadastros foram carregados
+                    </span>
                 </div>
             </section>
         </div>

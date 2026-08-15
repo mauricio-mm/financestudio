@@ -24,6 +24,7 @@ Route::middleware([
 ])->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
+    Route::get('/pessoas-empresas/dados', [PersonController::class, 'data'])->name('people.data');
     Route::resource('pessoas-empresas', PersonController::class)
         ->parameters(['pessoas-empresas' => 'person'])
         ->names('people')
@@ -35,4 +36,5 @@ Route::middleware([
         ->only(['index', 'store', 'update', 'destroy']);
 
     Route::get('/relatorios', FinancialReportController::class)->name('reports.index');
+    Route::get('/relatorios/dados', [FinancialReportController::class, 'entries'])->name('reports.entries');
 });

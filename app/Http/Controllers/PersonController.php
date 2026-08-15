@@ -4,50 +4,37 @@ namespace App\Http\Controllers;
 
 use App\Models\Person;
 use App\Models\PersonType;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class PersonController extends Controller
 {
+    private const PAGE_SIZE = 20;
+
     public function index(Request $request): Response
     {
-        $filters = $request->only(['search', 'person_type_id']);
-
-        $people = Person::query()
-            ->with('personType')
-            ->where('user_id', $request->user()->id)
-            ->when($filters['search'] ?? null, function ($query, string $search) {
-                $digitsSearch = $this->onlyDigits($search);
-
-                $query->where(function ($query) use ($search, $digitsSearch) {
-                    $query
-                        ->where('name', 'like', "%{$search}%")
-                        ->orWhere('email', 'like', "%{$search}%");
-
-                    if ($digitsSearch !== '') {
-                        $query
-                            ->orWhere('document', 'like', "%{$digitsSearch}%")
-                            ->orWhere('phone', 'like', "%{$digitsSearch}%");
-                    }
-                });
-            })
-            ->when($filters['person_type_id'] ?? null, fn ($query, string $personTypeId) => $query->where('person_type_id', $personTypeId))
-            ->latest()
-            ->paginate(10)
-            ->withQueryString()
-            ->through(fn (Person $person) => $this->personPayload($person));
-
         return Inertia::render('People/Index', [
-            'people' => $people,
+            'people' => $this->peoplePage($request),
             'filters' => [
-                'search' => $filters['search'] ?? '',
-                'person_type_id' => $filters['person_type_id'] ?? '',
+                'search' => '',
+                'person_type_id' => '',
             ],
             'types' => PersonType::options(),
         ]);
+    }
+
+    public function data(Request $request): JsonResponse
+    {
+        $request->validate([
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        return response()->json($this->peoplePage($request));
     }
 
     public function store(Request $request): RedirectResponse
@@ -82,6 +69,30 @@ class PersonController extends Controller
         return redirect()
             ->route('people.index')
             ->with('flash.banner', 'Pessoa/empresa removida com sucesso.');
+    }
+
+    private function peoplePage(Request $request): array
+    {
+        $people = Person::query()
+            ->with('personType')
+            ->where('user_id', $request->user()->id)
+            ->latest('id')
+            ->paginate(self::PAGE_SIZE)
+            ->through(fn (Person $person) => $this->personPayload($person));
+
+        return $this->paginatorPayload($people);
+    }
+
+    private function paginatorPayload(LengthAwarePaginator $paginator): array
+    {
+        return [
+            'data' => $paginator->items(),
+            'current_page' => $paginator->currentPage(),
+            'last_page' => $paginator->lastPage(),
+            'per_page' => $paginator->perPage(),
+            'total' => $paginator->total(),
+            'has_more' => $paginator->hasMorePages(),
+        ];
     }
 
     private function validatedData(Request $request, ?Person $person = null): array
@@ -135,6 +146,7 @@ class PersonController extends Controller
             'phone_digits' => $person->phone,
             'person_type_id' => $person->person_type_id,
             'type_label' => $person->personType?->name,
+            'type_slug' => $person->personType?->slug,
             'created_at' => $person->created_at?->format('d/m/Y'),
         ];
     }
