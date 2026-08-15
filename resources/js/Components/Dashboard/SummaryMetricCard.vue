@@ -1,12 +1,18 @@
 <script setup>
+import { computed } from 'vue';
 import { money } from '@/Utils/money';
 
-defineProps({
+const props = defineProps({
     card: {
         type: Object,
         required: true,
     },
 });
+
+const numberFormatter = new Intl.NumberFormat('pt-BR');
+const formattedValue = computed(() => props.card.format === 'number'
+    ? numberFormatter.format(props.card.value)
+    : money(props.card.value));
 </script>
 
 <template>
@@ -17,7 +23,7 @@ defineProps({
                     {{ card.label }}
                 </p>
                 <p class="mt-2 text-2xl font-semibold text-slate-900">
-                    {{ money(card.value) }}
+                    {{ formattedValue }}
                 </p>
             </div>
 

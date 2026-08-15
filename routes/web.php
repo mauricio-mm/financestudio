@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FinancialEntryController;
 use App\Http\Controllers\PersonController;
 use Illuminate\Foundation\Application;
@@ -20,9 +21,7 @@ Route::middleware([
     config('jetstream.auth_session'),
     'verified',
 ])->group(function () {
-    Route::get('/dashboard', function () {
-        return Inertia::render('Dashboard');
-    })->name('dashboard');
+    Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
     Route::resource('pessoas-empresas', PersonController::class)
         ->parameters(['pessoas-empresas' => 'person'])

@@ -24,10 +24,10 @@ defineProps({
             </span>
         </div>
 
-        <div class="mt-5 divide-y divide-slate-100">
+        <div v-if="bills.length > 0" class="mt-5 divide-y divide-slate-100">
             <div
                 v-for="bill in bills"
-                :key="bill.title"
+                :key="bill.id"
                 class="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0"
             >
                 <div class="min-w-0">
@@ -51,5 +51,9 @@ defineProps({
                 </div>
             </div>
         </div>
+
+        <p v-else class="mt-5 rounded-lg bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+            Nenhum vencimento para os proximos dias.
+        </p>
     </article>
 </template>
