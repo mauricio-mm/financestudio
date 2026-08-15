@@ -20,16 +20,17 @@ class PersonController extends Controller
             ->with('personType')
             ->where('user_id', $request->user()->id)
             ->when($filters['search'] ?? null, function ($query, string $search) {
-                $documentSearch = $this->onlyDigits($search);
+                $digitsSearch = $this->onlyDigits($search);
 
-                $query->where(function ($query) use ($search, $documentSearch) {
+                $query->where(function ($query) use ($search, $digitsSearch) {
                     $query
                         ->where('name', 'like', "%{$search}%")
-                        ->orWhere('email', 'like', "%{$search}%")
-                        ->orWhere('phone', 'like', "%{$search}%");
+                        ->orWhere('email', 'like', "%{$search}%");
 
-                    if ($documentSearch !== '') {
-                        $query->orWhere('document', 'like', "%{$documentSearch}%");
+                    if ($digitsSearch !== '') {
+                        $query
+                            ->orWhere('document', 'like', "%{$digitsSearch}%")
+                            ->orWhere('phone', 'like', "%{$digitsSearch}%");
                     }
                 });
             })
@@ -49,13 +50,6 @@ class PersonController extends Controller
         ]);
     }
 
-    public function create(): Response
-    {
-        return Inertia::render('People/Create', [
-            'types' => PersonType::options(),
-        ]);
-    }
-
     public function store(Request $request): RedirectResponse
     {
         Person::create([
@@ -66,16 +60,6 @@ class PersonController extends Controller
         return redirect()
             ->route('people.index')
             ->with('flash.banner', 'Pessoa/empresa cadastrada com sucesso.');
-    }
-
-    public function edit(Request $request, Person $person): Response
-    {
-        $this->authorizePerson($request, $person);
-
-        return Inertia::render('People/Edit', [
-            'person' => $this->personPayload($person->load('personType')),
-            'types' => PersonType::options(),
-        ]);
     }
 
     public function update(Request $request, Person $person): RedirectResponse
@@ -102,8 +86,11 @@ class PersonController extends Controller
 
     private function validatedData(Request $request, ?Person $person = null): array
     {
+        $phone = $this->onlyDigits((string) $request->input('phone'));
+
         $request->merge([
             'document' => $this->onlyDigits((string) $request->input('document')),
+            'phone' => $phone !== '' ? $phone : null,
         ]);
 
         $documentRule = Rule::unique('people', 'document')
@@ -117,7 +104,7 @@ class PersonController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'document' => ['required', 'regex:/^(\d{11}|\d{14})$/', $documentRule],
             'email' => ['nullable', 'email', 'max:255'],
-            'phone' => ['nullable', 'string', 'max:30'],
+            'phone' => ['nullable', 'regex:/^\d{10,11}$/'],
             'person_type_id' => ['required', Rule::exists('person_types', 'id')],
         ], [
             'name.required' => 'Informe o nome ou razao social.',
@@ -125,6 +112,7 @@ class PersonController extends Controller
             'document.regex' => 'Informe um CPF com 11 digitos ou CNPJ com 14 digitos.',
             'document.unique' => 'Voce ja cadastrou uma pessoa/empresa com este CPF ou CNPJ.',
             'email.email' => 'Informe um e-mail valido.',
+            'phone.regex' => 'Informe um telefone com DDD e 10 ou 11 digitos.',
             'person_type_id.required' => 'Selecione o tipo.',
             'person_type_id.exists' => 'Selecione um tipo valido.',
         ]);
@@ -143,7 +131,8 @@ class PersonController extends Controller
             'document' => $this->formatDocument($person->document),
             'document_digits' => $person->document,
             'email' => $person->email,
-            'phone' => $person->phone,
+            'phone' => $this->formatPhone($person->phone),
+            'phone_digits' => $person->phone,
             'person_type_id' => $person->person_type_id,
             'type_label' => $person->personType?->name,
             'created_at' => $person->created_at?->format('d/m/Y'),
@@ -158,9 +147,22 @@ class PersonController extends Controller
     private function formatDocument(string $document): string
     {
         return match (strlen($document)) {
-            11 => preg_replace('/(\d{3})(\d{3})(\d{3})(\d{2})/', '$1.$2.$3-$4', $document),
-            14 => preg_replace('/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/', '$1.$2.$3/$4-$5', $document),
+            11 => preg_replace('/(\d{3})(\d{3})(\d{3})(\d{2})/', '$1.$2.$3-$4', $document) ?? $document,
+            14 => preg_replace('/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/', '$1.$2.$3/$4-$5', $document) ?? $document,
             default => $document,
+        };
+    }
+
+    private function formatPhone(?string $phone): ?string
+    {
+        if ($phone === null || $phone === '') {
+            return null;
+        }
+
+        return match (strlen($phone)) {
+            10 => preg_replace('/(\d{2})(\d{4})(\d{4})/', '($1) $2-$3', $phone) ?? $phone,
+            11 => preg_replace('/(\d{2})(\d{5})(\d{4})/', '($1) $2-$3', $phone) ?? $phone,
+            default => $phone,
         };
     }
 }

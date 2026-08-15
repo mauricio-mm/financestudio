@@ -35,7 +35,8 @@ const navigationItems = [
     },
     {
         name: 'A Receber',
-        disabled: true,
+        href: '/contas-receber',
+        routeName: 'receivables.*',
         icon: [
             'M12 2v20',
             'M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6',
@@ -43,7 +44,8 @@ const navigationItems = [
     },
     {
         name: 'A Pagar',
-        disabled: true,
+        href: '/contas-pagar',
+        routeName: 'payables.*',
         icon: [
             'M3 6h18',
             'M7 6V4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2',

@@ -1,7 +1,9 @@
 <script setup>
-import { reactive } from 'vue';
-import { Link, router } from '@inertiajs/vue3';
+import { computed, reactive, ref } from 'vue';
+import { Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import Modal from '@/Components/Modal.vue';
+import PersonForm from '@/Pages/People/Partials/PersonForm.vue';
 
 const props = defineProps({
     people: {
@@ -22,6 +24,75 @@ const filterForm = reactive({
     search: props.filters.search || '',
     person_type_id: props.filters.person_type_id || '',
 });
+
+const showingPersonModal = ref(false);
+const editingPerson = ref(null);
+
+const personForm = useForm({
+    name: '',
+    document: '',
+    email: '',
+    phone: '',
+    person_type_id: '',
+});
+
+const modalTitle = computed(() => (editingPerson.value ? 'Editar cadastro' : 'Novo cadastro'));
+const submitLabel = computed(() => (editingPerson.value ? 'Salvar alteracoes' : 'Cadastrar'));
+
+const onlyDigits = (value) => String(value || '').replace(/\D/g, '');
+
+const resetPersonForm = (person = null) => {
+    personForm.clearErrors();
+    personForm.name = person?.name || '';
+    personForm.document = person?.document || '';
+    personForm.email = person?.email || '';
+    personForm.phone = person?.phone || '';
+    personForm.person_type_id = person?.person_type_id || '';
+};
+
+const openCreateModal = () => {
+    editingPerson.value = null;
+    resetPersonForm();
+    showingPersonModal.value = true;
+};
+
+const openEditModal = (person) => {
+    editingPerson.value = person;
+    resetPersonForm(person);
+    showingPersonModal.value = true;
+};
+
+const closePersonModal = (force = false) => {
+    if (personForm.processing && !force) {
+        return;
+    }
+
+    showingPersonModal.value = false;
+    editingPerson.value = null;
+    personForm.clearErrors();
+};
+
+const normalizedPersonData = (data) => ({
+    ...data,
+    document: onlyDigits(data.document),
+    phone: data.phone ? onlyDigits(data.phone) : null,
+});
+
+const submitPerson = () => {
+    personForm.transform(normalizedPersonData);
+
+    const options = {
+        preserveScroll: true,
+        onSuccess: () => closePersonModal(true),
+    };
+
+    if (editingPerson.value) {
+        personForm.put(route('people.update', editingPerson.value.id), options);
+        return;
+    }
+
+    personForm.post(route('people.store'), options);
+};
 
 const applyFilters = () => {
     router.get(route('people.index'), filterForm, {
@@ -75,12 +146,13 @@ const destroyPerson = (person) => {
                     </p>
                 </div>
 
-                <Link
-                    :href="route('people.create')"
+                <button
+                    type="button"
                     class="inline-flex justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                    @click="openCreateModal"
                 >
                     Novo cadastro
-                </Link>
+                </button>
             </div>
 
             <section class="rounded-lg bg-white p-5 shadow-sm ring-1 ring-black/5">
@@ -191,12 +263,13 @@ const destroyPerson = (person) => {
                                 </td>
                                 <td class="px-5 py-4 text-right">
                                     <div class="flex justify-end gap-2">
-                                        <Link
-                                            :href="route('people.edit', person.id)"
+                                        <button
+                                            type="button"
                                             class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                                            @click="openEditModal(person)"
                                         >
                                             Editar
-                                        </Link>
+                                        </button>
                                         <button
                                             type="button"
                                             class="rounded-lg border border-rose-100 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50"
@@ -239,5 +312,24 @@ const destroyPerson = (person) => {
                 </div>
             </section>
         </div>
+
+        <Modal :show="showingPersonModal" max-width="2xl" @close="closePersonModal">
+            <div class="border-b border-slate-100 px-6 py-5">
+                <h2 class="text-lg font-semibold text-slate-900">
+                    {{ modalTitle }}
+                </h2>
+                <p class="mt-1 text-sm text-slate-500">
+                    Informe os dados principais para usar este cadastro nas movimentacoes.
+                </p>
+            </div>
+
+            <PersonForm
+                :form="personForm"
+                :types="types"
+                :submit-label="submitLabel"
+                @submit="submitPerson"
+                @cancel="closePersonModal"
+            />
+        </Modal>
     </AppLayout>
 </template>

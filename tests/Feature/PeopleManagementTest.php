@@ -12,7 +12,7 @@ class PeopleManagementTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_people_are_created_for_the_authenticated_user_with_normalized_document(): void
+    public function test_people_are_created_for_the_authenticated_user_with_normalized_document_and_phone(): void
     {
         $user = User::factory()->create();
         $type = PersonType::where('slug', PersonType::CUSTOMER)->firstOrFail();
@@ -33,7 +33,24 @@ class PeopleManagementTest extends TestCase
             'person_type_id' => $type->id,
             'name' => 'Cliente Atlas',
             'document' => '12345678901',
+            'phone' => '11999990000',
         ]);
+    }
+
+    public function test_person_document_and_phone_must_have_valid_digit_lengths(): void
+    {
+        $user = User::factory()->create();
+        $type = PersonType::where('slug', PersonType::CUSTOMER)->firstOrFail();
+
+        $this
+            ->actingAs($user)
+            ->post(route('people.store'), [
+                'name' => 'Cliente Invalido',
+                'document' => '12345',
+                'phone' => '(11) 999',
+                'person_type_id' => $type->id,
+            ])
+            ->assertSessionHasErrors(['document', 'phone']);
     }
 
     public function test_user_only_sees_their_own_people(): void

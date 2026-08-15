@@ -1,6 +1,5 @@
 <script setup>
 import { computed } from 'vue';
-import { Link } from '@inertiajs/vue3';
 import InputError from '@/Components/InputError.vue';
 
 const props = defineProps({
@@ -16,15 +15,11 @@ const props = defineProps({
         type: String,
         required: true,
     },
-    cancelHref: {
-        type: String,
-        required: true,
-    },
 });
 
-defineEmits(['submit']);
+const emit = defineEmits(['submit', 'cancel']);
 
-const onlyDigits = (value) => value.replace(/\D/g, '').slice(0, 14);
+const onlyDigits = (value, maxLength) => value.replace(/\D/g, '').slice(0, maxLength);
 
 const formatCpf = (digits) => digits
     .replace(/^(\d{3})(\d)/, '$1.$2')
@@ -38,7 +33,7 @@ const formatCnpj = (digits) => digits
     .replace(/^(\d{2})\.(\d{3})\.(\d{3})\/(\d{4})(\d)/, '$1.$2.$3/$4-$5');
 
 const formatDocument = (value) => {
-    const digits = onlyDigits(value);
+    const digits = onlyDigits(value, 14);
 
     if (digits.length <= 11) {
         return formatCpf(digits);
@@ -47,8 +42,22 @@ const formatDocument = (value) => {
     return formatCnpj(digits);
 };
 
+const formatPhone = (value) => {
+    const digits = onlyDigits(value, 11);
+
+    if (digits.length <= 10) {
+        return digits
+            .replace(/^(\d{2})(\d)/, '($1) $2')
+            .replace(/^(\(\d{2}\) \d{4})(\d)/, '$1-$2');
+    }
+
+    return digits
+        .replace(/^(\d{2})(\d)/, '($1) $2')
+        .replace(/^(\(\d{2}\) \d{5})(\d)/, '$1-$2');
+};
+
 const documentKindLabel = computed(() => {
-    const length = onlyDigits(props.form.document).length;
+    const length = onlyDigits(props.form.document, 14).length;
 
     if (length === 0) {
         return 'Digite CPF ou CNPJ';
@@ -61,13 +70,31 @@ const documentKindLabel = computed(() => {
     return length + '/14 digitos para CNPJ';
 });
 
+const phoneKindLabel = computed(() => {
+    const length = onlyDigits(props.form.phone || '', 11).length;
+
+    if (length === 0) {
+        return 'Telefone com DDD';
+    }
+
+    if (length <= 10) {
+        return length + '/10 digitos para telefone fixo';
+    }
+
+    return length + '/11 digitos para celular';
+});
+
 const updateDocument = (event) => {
     props.form.document = formatDocument(event.target.value);
+};
+
+const updatePhone = (event) => {
+    props.form.phone = formatPhone(event.target.value);
 };
 </script>
 
 <template>
-    <form class="rounded-lg bg-white p-6 shadow-sm ring-1 ring-black/5" @submit.prevent="$emit('submit')">
+    <form class="p-6" @submit.prevent="emit('submit')">
         <div class="grid gap-5 md:grid-cols-2">
             <div class="md:col-span-2">
                 <label for="name" class="text-sm font-medium text-slate-700">
@@ -143,22 +170,31 @@ const updateDocument = (event) => {
                 </label>
                 <input
                     id="phone"
-                    v-model="form.phone"
+                    :value="form.phone"
                     type="text"
+                    inputmode="numeric"
+                    maxlength="15"
+                    pattern="(\(\d{2}\) \d{4}-\d{4}|\(\d{2}\) \d{5}-\d{4}|\d{10}|\d{11})"
                     class="mt-2 w-full rounded-lg border-slate-200 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500"
+                    placeholder="(00) 00000-0000"
                     autocomplete="tel"
+                    @input="updatePhone"
                 >
+                <p class="mt-1 text-xs text-slate-400">
+                    {{ phoneKindLabel }}
+                </p>
                 <InputError class="mt-2" :message="form.errors.phone" />
             </div>
         </div>
 
         <div class="mt-6 flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
-            <Link
-                :href="cancelHref"
+            <button
+                type="button"
                 class="inline-flex justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                @click="emit('cancel')"
             >
                 Cancelar
-            </Link>
+            </button>
             <button
                 type="submit"
                 class="inline-flex justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-50"
