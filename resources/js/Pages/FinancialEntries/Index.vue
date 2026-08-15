@@ -3,22 +3,30 @@ import { computed, reactive, ref } from 'vue';
 import { Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Modal from '@/Components/Modal.vue';
-import ReceivableForm from '@/Pages/Receivables/Partials/ReceivableForm.vue';
+import FinancialEntryForm from '@/Pages/FinancialEntries/Partials/FinancialEntryForm.vue';
 
 const props = defineProps({
-    receivables: {
+    entries: {
         type: Object,
+        required: true,
+    },
+    activeType: {
+        type: String,
         required: true,
     },
     filters: {
         type: Object,
         required: true,
     },
-    customers: {
+    people: {
         type: Array,
         required: true,
     },
     statuses: {
+        type: Array,
+        required: true,
+    },
+    typeOptions: {
         type: Array,
         required: true,
     },
@@ -29,17 +37,65 @@ const props = defineProps({
 });
 
 const filterForm = reactive({
+    type: props.filters.type || props.activeType,
     search: props.filters.search || '',
     person_id: props.filters.person_id || '',
     status: props.filters.status || '',
 });
 
-const showingReceivableModal = ref(false);
-const editingReceivable = ref(null);
+const showingEntryModal = ref(false);
+const editingEntry = ref(null);
 
 const today = () => new Date().toISOString().slice(0, 10);
+const isPayable = computed(() => props.activeType === 'payable');
 
-const receivableForm = useForm({
+const settledStatusFor = (type) => (type === 'payable' ? 'paid' : 'received');
+const settledStatus = computed(() => settledStatusFor(props.activeType));
+
+const labels = computed(() => {
+    if (isPayable.value) {
+        return {
+            title: 'Contas a Pagar',
+            subtitle: 'Lancamentos vinculados aos fornecedores cadastrados.',
+            person: 'Fornecedor',
+            personPlural: 'Fornecedores',
+            personFilter: 'Fornecedor',
+            actionTitle: 'Pagamentos',
+            newButton: 'Nova conta',
+            modalCreate: 'Nova conta a pagar',
+            modalEdit: 'Editar conta a pagar',
+            modalDescription: 'Informe os dados do pagamento previsto ou realizado.',
+            settlementDate: 'Data do pagamento',
+            settlementColumn: 'Pagamento',
+            settledSummary: 'Pago',
+            descriptionPlaceholder: 'Ex: Aluguel, fornecedor, assinatura',
+            searchPlaceholder: 'Descricao ou fornecedor',
+            empty: 'Nenhuma conta a pagar encontrada.',
+        };
+    }
+
+    return {
+        title: 'Contas a Receber',
+        subtitle: 'Lancamentos vinculados aos clientes cadastrados.',
+        person: 'Cliente',
+        personPlural: 'Clientes',
+        personFilter: 'Cliente',
+        actionTitle: 'Recebimentos',
+        newButton: 'Nova conta',
+        modalCreate: 'Nova conta a receber',
+        modalEdit: 'Editar conta a receber',
+        modalDescription: 'Informe os dados do recebimento previsto ou realizado.',
+        settlementDate: 'Data do recebimento',
+        settlementColumn: 'Recebimento',
+        settledSummary: 'Recebido',
+        descriptionPlaceholder: 'Ex: Mensalidade de servico',
+        searchPlaceholder: 'Descricao ou cliente',
+        empty: 'Nenhuma conta a receber encontrada.',
+    };
+});
+
+const entryForm = useForm({
+    type: props.activeType,
     person_id: '',
     description: '',
     amount: '',
@@ -49,12 +105,12 @@ const receivableForm = useForm({
     settlement_date: '',
 });
 
-const modalTitle = computed(() => (editingReceivable.value ? 'Editar conta a receber' : 'Nova conta a receber'));
-const submitLabel = computed(() => (editingReceivable.value ? 'Salvar alteracoes' : 'Cadastrar'));
+const modalTitle = computed(() => (editingEntry.value ? labels.value.modalEdit : labels.value.modalCreate));
+const submitLabel = computed(() => (editingEntry.value ? 'Salvar alteracoes' : 'Cadastrar'));
 
 const summaryCards = computed(() => [
     { label: 'Pendente', value: props.summary.pending, class: 'border-amber-100 bg-amber-50/70 text-amber-700' },
-    { label: 'Recebido', value: props.summary.received, class: 'border-emerald-100 bg-emerald-50/70 text-emerald-700' },
+    { label: labels.value.settledSummary, value: props.summary.settled, class: 'border-emerald-100 bg-emerald-50/70 text-emerald-700' },
     { label: 'Vencido', value: props.summary.overdue, class: 'border-rose-100 bg-rose-50/70 text-rose-700' },
     { label: 'Cancelado', value: props.summary.cancelled, class: 'border-slate-200 bg-slate-50 text-slate-600' },
 ]);
@@ -62,6 +118,7 @@ const summaryCards = computed(() => [
 const statusBadgeClasses = {
     pending: 'bg-amber-50 text-amber-700 ring-amber-100',
     received: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
+    paid: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
     overdue: 'bg-rose-50 text-rose-700 ring-rose-100',
     cancelled: 'bg-slate-100 text-slate-500 ring-slate-200',
 };
@@ -76,121 +133,146 @@ const normalizeAmount = (value) => {
     return normalized.replace(',', '.');
 };
 
-const resetReceivableForm = (receivable = null) => {
-    receivableForm.clearErrors();
-    receivableForm.person_id = receivable?.person_id || '';
-    receivableForm.description = receivable?.description || '';
-    receivableForm.amount = receivable?.amount || '';
-    receivableForm.issue_date = receivable?.issue_date || today();
-    receivableForm.due_date = receivable?.due_date || '';
-    receivableForm.status = receivable?.status || 'pending';
-    receivableForm.settlement_date = receivable?.settlement_date || '';
+const switchType = (type) => {
+    router.get(route('financial-entries.index'), { type }, {
+        replace: true,
+    });
+};
+
+const resetEntryForm = (entry = null) => {
+    entryForm.clearErrors();
+    entryForm.type = entry?.type || props.activeType;
+    entryForm.person_id = entry?.person_id || '';
+    entryForm.description = entry?.description || '';
+    entryForm.amount = entry?.amount || '';
+    entryForm.issue_date = entry?.issue_date || today();
+    entryForm.due_date = entry?.due_date || '';
+    entryForm.status = entry?.status || 'pending';
+    entryForm.settlement_date = entry?.settlement_date || '';
 };
 
 const openCreateModal = () => {
-    editingReceivable.value = null;
-    resetReceivableForm();
-    showingReceivableModal.value = true;
+    editingEntry.value = null;
+    resetEntryForm();
+    showingEntryModal.value = true;
 };
 
-const openEditModal = (receivable) => {
-    editingReceivable.value = receivable;
-    resetReceivableForm(receivable);
-    showingReceivableModal.value = true;
+const openEditModal = (entry) => {
+    editingEntry.value = entry;
+    resetEntryForm(entry);
+    showingEntryModal.value = true;
 };
 
-const closeReceivableModal = (force = false) => {
-    if (receivableForm.processing && !force) {
+const closeEntryModal = (force = false) => {
+    if (entryForm.processing && !force) {
         return;
     }
 
-    showingReceivableModal.value = false;
-    editingReceivable.value = null;
-    receivableForm.clearErrors();
+    showingEntryModal.value = false;
+    editingEntry.value = null;
+    entryForm.clearErrors();
 };
 
-const normalizedReceivableData = (data) => ({
+const normalizedEntryData = (data) => ({
     ...data,
     amount: normalizeAmount(data.amount),
-    settlement_date: data.status === 'received' ? data.settlement_date : null,
+    settlement_date: data.status === settledStatusFor(data.type) ? data.settlement_date : null,
 });
 
-const submitReceivable = () => {
-    receivableForm.transform(normalizedReceivableData);
+const submitEntry = () => {
+    entryForm.transform(normalizedEntryData);
 
     const options = {
         preserveScroll: true,
-        onSuccess: () => closeReceivableModal(true),
+        onSuccess: () => closeEntryModal(true),
     };
 
-    if (editingReceivable.value) {
-        receivableForm.put(route('receivables.update', editingReceivable.value.id), options);
+    if (editingEntry.value) {
+        entryForm.put(route('financial-entries.update', editingEntry.value.id), options);
         return;
     }
 
-    receivableForm.post(route('receivables.store'), options);
+    entryForm.post(route('financial-entries.store'), options);
 };
 
 const applyFilters = () => {
-    router.get(route('receivables.index'), filterForm, {
+    filterForm.type = props.activeType;
+
+    router.get(route('financial-entries.index'), filterForm, {
         preserveState: true,
         replace: true,
     });
 };
 
 const clearFilters = () => {
+    filterForm.type = props.activeType;
     filterForm.search = '';
     filterForm.person_id = '';
     filterForm.status = '';
 
-    router.get(route('receivables.index'), {}, {
+    router.get(route('financial-entries.index'), { type: props.activeType }, {
         preserveState: true,
         replace: true,
     });
 };
 
-const destroyReceivable = (receivable) => {
-    if (! window.confirm(`Remover ${receivable.description}?`)) {
+const destroyEntry = (entry) => {
+    if (! window.confirm(`Remover ${entry.description}?`)) {
         return;
     }
 
-    router.delete(route('receivables.destroy', receivable.id), {
+    router.delete(route('financial-entries.destroy', entry.id), {
         preserveScroll: true,
     });
 };
 </script>
 
 <template>
-    <AppLayout title="Contas a Receber">
+    <AppLayout title="Contas">
         <template #header>
             <div>
                 <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                     Financeiro
                 </p>
                 <h1 class="text-xl font-semibold text-slate-900">
-                    Contas a Receber
+                    Contas
                 </h1>
             </div>
         </template>
 
         <div class="space-y-6">
-            <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                     <h2 class="text-lg font-semibold text-slate-900">
-                        Recebimentos
+                        {{ labels.actionTitle }}
                     </h2>
                     <p class="mt-1 text-sm text-slate-500">
-                        Lancamentos vinculados aos clientes cadastrados.
+                        {{ labels.subtitle }}
                     </p>
                 </div>
 
-                <button
-                    type="button"
-                    class="inline-flex justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
-                    @click="openCreateModal"
-                >
-                    Nova conta
-                </button>
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <div class="inline-flex rounded-lg bg-white p-1 shadow-sm ring-1 ring-black/5">
+                        <button
+                            v-for="option in typeOptions"
+                            :key="option.value"
+                            type="button"
+                            class="rounded-md px-4 py-2 text-sm font-semibold transition"
+                            :class="activeType === option.value ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:text-slate-900'"
+                            @click="switchType(option.value)"
+                        >
+                            {{ option.label }}
+                        </button>
+                    </div>
+
+                    <button
+                        type="button"
+                        class="inline-flex justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                        @click="openCreateModal"
+                    >
+                        {{ labels.newButton }}
+                    </button>
+                </div>
             </div>
 
             <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -220,13 +302,13 @@ const destroyReceivable = (receivable) => {
                             v-model="filterForm.search"
                             type="text"
                             class="mt-2 w-full rounded-lg border-slate-200 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500"
-                            placeholder="Descricao ou cliente"
+                            :placeholder="labels.searchPlaceholder"
                         >
                     </div>
 
                     <div>
                         <label for="person_id" class="text-sm font-medium text-slate-700">
-                            Cliente
+                            {{ labels.personFilter }}
                         </label>
                         <select
                             id="person_id"
@@ -236,8 +318,8 @@ const destroyReceivable = (receivable) => {
                             <option value="">
                                 Todos
                             </option>
-                            <option v-for="customer in customers" :key="customer.value" :value="customer.value">
-                                {{ customer.label }}
+                            <option v-for="person in people" :key="person.value" :value="person.value">
+                                {{ person.label }}
                             </option>
                         </select>
                     </div>
@@ -284,7 +366,7 @@ const destroyReceivable = (receivable) => {
                         <thead class="bg-slate-50">
                             <tr>
                                 <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                    Cliente
+                                    {{ labels.person }}
                                 </th>
                                 <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                                     Descricao
@@ -299,7 +381,7 @@ const destroyReceivable = (receivable) => {
                                     Status
                                 </th>
                                 <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                    Recebimento
+                                    {{ labels.settlementColumn }}
                                 </th>
                                 <th class="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
                                     Acoes
@@ -308,54 +390,54 @@ const destroyReceivable = (receivable) => {
                         </thead>
 
                         <tbody class="divide-y divide-slate-100">
-                            <tr v-if="receivables.data.length === 0">
+                            <tr v-if="entries.data.length === 0">
                                 <td colspan="7" class="px-5 py-10 text-center text-sm text-slate-500">
-                                    Nenhuma conta a receber encontrada.
+                                    {{ labels.empty }}
                                 </td>
                             </tr>
 
-                            <tr v-for="receivable in receivables.data" :key="receivable.id" class="hover:bg-slate-50/70">
+                            <tr v-for="entry in entries.data" :key="entry.id" class="hover:bg-slate-50/70">
                                 <td class="px-5 py-4">
                                     <p class="text-sm font-semibold text-slate-900">
-                                        {{ receivable.customer_name }}
+                                        {{ entry.person_name }}
                                     </p>
                                     <p class="mt-1 text-xs text-slate-400">
-                                        Emissao {{ receivable.issue_date_formatted }}
+                                        Emissao {{ entry.issue_date_formatted }}
                                     </p>
                                 </td>
                                 <td class="px-5 py-4 text-sm text-slate-600">
-                                    {{ receivable.description }}
+                                    {{ entry.description }}
                                 </td>
                                 <td class="px-5 py-4 text-sm font-semibold text-slate-900">
-                                    {{ receivable.amount_formatted }}
+                                    {{ entry.amount_formatted }}
                                 </td>
                                 <td class="px-5 py-4 text-sm text-slate-600">
-                                    {{ receivable.due_date_formatted }}
+                                    {{ entry.due_date_formatted }}
                                 </td>
                                 <td class="px-5 py-4">
                                     <span
                                         class="rounded-full px-3 py-1 text-xs font-semibold ring-1"
-                                        :class="statusBadgeClasses[receivable.status] || 'bg-slate-100 text-slate-600 ring-slate-200'"
+                                        :class="statusBadgeClasses[entry.status] || 'bg-slate-100 text-slate-600 ring-slate-200'"
                                     >
-                                        {{ receivable.status_label }}
+                                        {{ entry.status_label }}
                                     </span>
                                 </td>
                                 <td class="px-5 py-4 text-sm text-slate-600">
-                                    {{ receivable.settlement_date_formatted || '-' }}
+                                    {{ entry.settlement_date_formatted || '-' }}
                                 </td>
                                 <td class="px-5 py-4 text-right">
                                     <div class="flex justify-end gap-2">
                                         <button
                                             type="button"
                                             class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                                            @click="openEditModal(receivable)"
+                                            @click="openEditModal(entry)"
                                         >
                                             Editar
                                         </button>
                                         <button
                                             type="button"
                                             class="rounded-lg border border-rose-100 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50"
-                                            @click="destroyReceivable(receivable)"
+                                            @click="destroyEntry(entry)"
                                         >
                                             Excluir
                                         </button>
@@ -367,15 +449,15 @@ const destroyReceivable = (receivable) => {
                 </div>
 
                 <div
-                    v-if="receivables.links.length > 3"
+                    v-if="entries.links.length > 3"
                     class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-4"
                 >
                     <p class="text-sm text-slate-500">
-                        Mostrando {{ receivables.from }} a {{ receivables.to }} de {{ receivables.total }} registros
+                        Mostrando {{ entries.from }} a {{ entries.to }} de {{ entries.total }} registros
                     </p>
 
                     <div class="flex flex-wrap gap-1">
-                        <template v-for="link in receivables.links" :key="link.label">
+                        <template v-for="link in entries.links" :key="link.label">
                             <Link
                                 v-if="link.url"
                                 :href="link.url"
@@ -395,23 +477,25 @@ const destroyReceivable = (receivable) => {
             </section>
         </div>
 
-        <Modal :show="showingReceivableModal" max-width="2xl" @close="closeReceivableModal">
+        <Modal :show="showingEntryModal" max-width="2xl" @close="closeEntryModal">
             <div class="border-b border-slate-100 px-6 py-5">
                 <h2 class="text-lg font-semibold text-slate-900">
                     {{ modalTitle }}
                 </h2>
                 <p class="mt-1 text-sm text-slate-500">
-                    Informe os dados do recebimento previsto ou realizado.
+                    {{ labels.modalDescription }}
                 </p>
             </div>
 
-            <ReceivableForm
-                :form="receivableForm"
-                :customers="customers"
+            <FinancialEntryForm
+                :form="entryForm"
+                :people="people"
                 :statuses="statuses"
+                :labels="labels"
+                :settled-status="settledStatus"
                 :submit-label="submitLabel"
-                @submit="submitReceivable"
-                @cancel="closeReceivableModal"
+                @submit="submitEntry"
+                @cancel="closeEntryModal"
             />
         </Modal>
     </AppLayout>

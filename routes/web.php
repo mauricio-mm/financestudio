@@ -1,8 +1,7 @@
 <?php
 
-use App\Http\Controllers\PayableController;
+use App\Http\Controllers\FinancialEntryController;
 use App\Http\Controllers\PersonController;
-use App\Http\Controllers\ReceivableController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -30,13 +29,8 @@ Route::middleware([
         ->names('people')
         ->only(['index', 'store', 'update', 'destroy']);
 
-    Route::resource('contas-receber', ReceivableController::class)
-        ->parameters(['contas-receber' => 'receivable'])
-        ->names('receivables')
-        ->only(['index', 'store', 'update', 'destroy']);
-
-    Route::resource('contas-pagar', PayableController::class)
-        ->parameters(['contas-pagar' => 'payable'])
-        ->names('payables')
+    Route::resource('contas', FinancialEntryController::class)
+        ->parameters(['contas' => 'financialEntry'])
+        ->names('financial-entries')
         ->only(['index', 'store', 'update', 'destroy']);
 });

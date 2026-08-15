@@ -7,12 +7,20 @@ const props = defineProps({
         type: Object,
         required: true,
     },
-    suppliers: {
+    people: {
         type: Array,
         required: true,
     },
     statuses: {
         type: Array,
+        required: true,
+    },
+    labels: {
+        type: Object,
+        required: true,
+    },
+    settledStatus: {
+        type: String,
         required: true,
     },
     submitLabel: {
@@ -24,7 +32,7 @@ const props = defineProps({
 const emit = defineEmits(['submit', 'cancel']);
 
 watch(() => props.form.status, (status) => {
-    if (status !== 'paid') {
+    if (status !== props.settledStatus) {
         props.form.settlement_date = '';
     }
 });
@@ -35,7 +43,7 @@ watch(() => props.form.status, (status) => {
         <div class="grid gap-5 md:grid-cols-2">
             <div>
                 <label for="person_id" class="text-sm font-medium text-slate-700">
-                    Fornecedor
+                    {{ labels.person }}
                 </label>
                 <select
                     id="person_id"
@@ -45,8 +53,8 @@ watch(() => props.form.status, (status) => {
                     <option value="">
                         Selecione
                     </option>
-                    <option v-for="supplier in suppliers" :key="supplier.value" :value="supplier.value">
-                        {{ supplier.label }}
+                    <option v-for="person in people" :key="person.value" :value="person.value">
+                        {{ person.label }}
                     </option>
                 </select>
                 <InputError class="mt-2" :message="form.errors.person_id" />
@@ -77,7 +85,7 @@ watch(() => props.form.status, (status) => {
                     v-model="form.description"
                     type="text"
                     class="mt-2 w-full rounded-lg border-slate-200 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500"
-                    placeholder="Ex: Aluguel, fornecedor, assinatura"
+                    :placeholder="labels.descriptionPlaceholder"
                 >
                 <InputError class="mt-2" :message="form.errors.description" />
             </div>
@@ -126,13 +134,13 @@ watch(() => props.form.status, (status) => {
 
             <div>
                 <label for="settlement_date" class="text-sm font-medium text-slate-700">
-                    Data do pagamento
+                    {{ labels.settlementDate }}
                 </label>
                 <input
                     id="settlement_date"
                     v-model="form.settlement_date"
                     type="date"
-                    :disabled="form.status !== 'paid'"
+                    :disabled="form.status !== settledStatus"
                     class="mt-2 w-full rounded-lg border-slate-200 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500 disabled:bg-slate-50 disabled:text-slate-400"
                 >
                 <InputError class="mt-2" :message="form.errors.settlement_date" />
