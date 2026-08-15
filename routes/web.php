@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FinancialEntryController;
+use App\Http\Controllers\FinancialReportController;
 use App\Http\Controllers\PersonController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -32,4 +33,6 @@ Route::middleware([
         ->parameters(['contas' => 'financialEntry'])
         ->names('financial-entries')
         ->only(['index', 'store', 'update', 'destroy']);
+
+    Route::get('/relatorios', FinancialReportController::class)->name('reports.index');
 });

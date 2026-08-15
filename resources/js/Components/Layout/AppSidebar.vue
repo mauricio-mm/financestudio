@@ -44,7 +44,8 @@ const navigationItems = [
     },
     {
         name: 'Relatorios',
-        disabled: true,
+        href: '/relatorios',
+        routeName: 'reports.*',
         icon: [
             'M3 3v18h18',
             'M7 15l4-4 3 3 5-7',
