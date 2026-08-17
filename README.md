@@ -2,6 +2,8 @@
 
 Sistema web em Laravel + Vue/Inertia para controle simplificado de contas a pagar, contas a receber, pessoas/empresas e relatorios financeiros.
 
+![alt text](image.png)
+
 ## Tecnologias
 
 - Backend: PHP + Laravel
