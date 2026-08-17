@@ -41,10 +41,10 @@ const logout = () => {
                 </slot>
             </div>
 
-            <div class="hidden w-full max-w-xs items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-400 shadow-sm lg:flex">
+            <!-- <div class="hidden w-full max-w-xs items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-400 shadow-sm lg:flex">
                 <Search class="me-2 size-4 shrink-0" stroke-width="2" aria-hidden="true" />
                 <span>Buscar...</span>
-            </div>
+            </div> -->
 
             <Dropdown align="right" width="48" :content-classes="dropdownContentClasses">
                 <template #trigger>
